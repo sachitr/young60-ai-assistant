@@ -42,6 +42,12 @@ Final Senior-Friendly Response
   - Metro / public transport
   - General help
 
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Learning Notes](docs/LEARNINGS.md)
+
+
 ## Features
 
 - Chatbot-style Streamlit interface
@@ -52,6 +58,22 @@ Final Senior-Friendly Response
 - Conditional routing to service nodes
 - Senior-friendly response formatting
 - Sidebar debug trace for development
+
+## Project Preview
+
+![Young60 Overview](assets/young60-chat-ui.png)
+
+## Sample Prompts
+
+You can try:
+
+- Weather in Delhi today
+- Weather in Delhi for next 3 days in table format
+- Dolo 650 side effects
+- Find hospital near Rohini
+- Find pharmacy near me
+- How to use WhatsApp video call?
+- Can I share OTP with bank agent?
 
 ## Setup
 
@@ -75,7 +97,7 @@ Example:
 
 ```env
 OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-5-nano
 
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key_here
 
@@ -93,18 +115,18 @@ Detailed learning notes are available here:
 
 [Learning Notes](docs/LEARNINGS.md)
 
+## Current Limitations
+
+- Nearby place results depend on available OpenStreetMap data.
+- Metro/public transport output is currently MVP-level and needs refinement.
+- Persistent user memory is not implemented yet.
+- Voice input/output is not implemented yet.
+- This project is currently designed as a local/portfolio application.
+
 ## Safety Note
 
 Young60 provides general guidance only. It does not replace doctors, emergency services, banks, government authorities, or professional advice.
 
-## GitHub Push Reference
+## Repository Status
 
-```bash
-git init
-git status
-git add .
-git commit -m "Initial Young60 LangGraph chatbot"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/young60-ai-assistant.git
-git push -u origin main
-```
+This project is maintained as a portfolio project and will be improved iteratively with better nearby search, metro routing, persistent memory, and deployment support.

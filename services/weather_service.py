@@ -25,6 +25,45 @@ def clean_text(value: str) -> str:
 
     return cleaned
 
+def clean_weather_location_text(text: str) -> str:
+    """
+    Clean location extracted from weather query.
+    Removes forecast/time/format instruction words without damaging city names.
+    """
+
+    if not text:
+        return ""
+
+    cleaned = clean_text(text)
+
+    stop_patterns = [
+        r"\s+for\s+next\s+\d+\s+days?.*",
+        r"\s+next\s+\d+\s+days?.*",
+        r"\s+for\s+\d+\s+days?.*",
+        r"\s+for\s+tomorrow.*",
+        r"\s+tomorrow.*",
+        r"\s+today.*",
+        r"\s+tonight.*",
+        r"\s+this\s+week.*",
+        r"\s+next\s+week.*",
+        r"\s+in\s+table\s+format.*",
+        r"\s+table\s+format.*",
+        r"\s+provide\s+your\s+response.*",
+        r"\s+ignore\s+snowfall.*",
+        r"\s+ignore\s+snow.*",
+        r"\s+snowfall\s+not\s+required.*",
+        r"\s+not\s+required.*",
+        r"\s+please.*",
+    ]
+
+    for pattern in stop_patterns:
+        cleaned = re.sub(pattern, "", cleaned, flags=re.IGNORECASE).strip()
+
+    cleaned = cleaned.replace(".", " ").replace("?", " ").replace(",", " ")
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    return cleaned
+
 
 def safe_json_loads(raw_text: str) -> dict:
     """
@@ -342,7 +381,7 @@ User query:
 
 def parse_weather_query_by_rules(query: str) -> dict:
     """
-    Fallback parser when LLM is unavailable or fails.
+    Rule-based fallback parser for weather query.
     """
 
     logger.info("Rule-based weather query parser started")
@@ -350,100 +389,133 @@ def parse_weather_query_by_rules(query: str) -> dict:
     q = query.lower().strip()
 
     result = {
-        "location": "",
+        "city": "",
         "query_type": "current_weather",
         "forecast_days": 1,
         "response_format": "text"
     }
 
-    if any(word in q for word in ["chance of rain", "rain chance", "will it rain", "rain forecast", "rain in"]):
-        result["query_type"] = "rain_forecast"
+    # -----------------------------
+    # Response format
+    # -----------------------------
 
-    elif any(word in q for word in ["snow", "snowfall", "will it snow"]):
-        result["query_type"] = "snow_forecast"
-
-    elif any(word in q for word in ["hot", "heat", "too hot", "high temperature"]):
-        result["query_type"] = "heat_forecast"
-
-    elif any(word in q for word in ["storm", "thunderstorm", "windy", "wind", "gust"]):
-        result["query_type"] = "storm_forecast"
-
-    elif any(word in q for word in ["forecast", "next week", "this week", "next few days"]):
-        result["query_type"] = "general_forecast"
-
-    if "next week" in q:
-        result["forecast_days"] = 8
-    elif "this week" in q:
-        result["forecast_days"] = 7
-    elif "tomorrow" in q or "kal" in q:
-        result["forecast_days"] = 2
-    elif "next few days" in q:
-        result["forecast_days"] = 5
-    elif result["query_type"] != "current_weather":
-        result["forecast_days"] = 7
-
-    if any(word in q for word in ["table", "table format", "day-wise", "day wise", "date-wise", "date wise"]):
+    if any(word in q for word in ["table", "table format"]):
         result["response_format"] = "table"
 
-    patterns = [
-        r"(?:chance of rain|rain chance|probability of rain|possibility of rain)\s+(?:in|for|at)\s+(.+)",
-        r"(?:will it rain|will it snow)\s+(?:in|for|at)\s+(.+)",
-        r"(?:snow|snowfall|storm|thunderstorm|heat|hot|weather|temperature|mausam|forecast)\s+(?:in|for|at|of)\s+(.+)",
-        r"(?:rain in|snow in|storm in)\s+(.+)",
-        r"(.+?)\s+(?:weather|temperature|mausam|forecast)$",
-        r"(?:aaj|today)?\s*(.+?)\s+(?:ka|ki|ke)\s+(?:weather|mausam|temperature)",
-    ]
+    # -----------------------------
+    # Forecast days
+    # -----------------------------
 
+    day_match = re.search(r"next\s+(\d+)\s+days?", q)
+
+    if day_match:
+        try:
+            result["forecast_days"] = int(day_match.group(1))
+            result["query_type"] = "general_forecast"
+        except Exception:
+            result["forecast_days"] = 1
+
+    elif "tomorrow" in q:
+        result["forecast_days"] = 2
+        result["query_type"] = "general_forecast"
+
+    elif any(word in q for word in ["next few days", "coming days"]):
+        result["forecast_days"] = 3
+        result["query_type"] = "general_forecast"
+
+    # -----------------------------
+    # Query type
+    # -----------------------------
+
+    if "rain" in q:
+        result["query_type"] = "rain_forecast"
+
+    if "snow" in q or "snowfall" in q:
+        if "ignore snow" not in q and "ignore snowfall" not in q and "not required" not in q:
+            result["query_type"] = "snow_forecast"
+
+    if any(word in q for word in ["hot", "heat", "temperature"]):
+        result["query_type"] = "heat_forecast"
+
+    if any(word in q for word in ["storm", "thunder", "wind"]):
+        result["query_type"] = "storm_forecast"
+
+    # -----------------------------
+    # City extraction
+    # -----------------------------
+
+    patterns = [
+        r"weather\s+in\s+(.+)",
+        r"forecast\s+in\s+(.+)",
+        r"rain\s+in\s+(.+)",
+        r"snow\s+in\s+(.+)",
+        r"temperature\s+in\s+(.+)",
+        r"weather\s+tomorrow\s+in\s+(.+)",
+        r"weather\s+today\s+in\s+(.+)",
+        r"(.+?)\s+weather\s+next\s+\d+\s+days?",
+        r"(.+?)\s+weather\s+tomorrow",
+        r"(.+?)\s+weather\s+today",
+        r"in\s+(.+)",
+    ]
+    
     for pattern in patterns:
         match = re.search(pattern, query, re.IGNORECASE)
 
         if match:
-            location = clean_location_text(match.group(1))
+            city = clean_weather_location_text(match.group(1))
 
-            if is_valid_location(location):
-                result["location"] = location
+            if city:
+                result["city"] = city
                 break
+
+    if result["forecast_days"] > 16:
+        result["forecast_days"] = 16
 
     logger.info(f"Rule parser result: {result}")
 
     return result
 
-
 def parse_weather_query(query: str) -> dict:
     """
     Main weather query parser.
-
-    Flow:
-    1. Try LLM parser
-    2. If LLM parser has no location, use rule parser fallback
-    3. If no location is found, default location is used later
+    Prefer LLM city if available.
+    Use rule parser only as fallback or for format/day hints.
     """
 
     llm_result = parse_weather_query_with_llm(query)
-
-    if llm_result.get("location"):
-        return llm_result
-
     rule_result = parse_weather_query_by_rules(query)
 
-    merged_result = llm_result.copy()
+    final_result = llm_result.copy()
 
-    if rule_result.get("location"):
-        merged_result["location"] = rule_result["location"]
+    # Important:
+    # Do not let rule parser overwrite a clean LLM city.
+    if not final_result.get("city") and rule_result.get("city"):
+        final_result["city"] = rule_result["city"]
 
-    if llm_result.get("query_type") == "current_weather" and rule_result.get("query_type") != "current_weather":
-        merged_result["query_type"] = rule_result["query_type"]
-
-    if llm_result.get("forecast_days", 1) == 1 and rule_result.get("forecast_days", 1) > 1:
-        merged_result["forecast_days"] = rule_result["forecast_days"]
-
+    # Use table hint from rules
     if rule_result.get("response_format") == "table":
-        merged_result["response_format"] = "table"
+        final_result["response_format"] = "table"
 
-    logger.info(f"Final parsed weather query: {merged_result}")
+    # Use forecast_days from rule if LLM missed it
+    if final_result.get("forecast_days", 1) == 1 and rule_result.get("forecast_days", 1) > 1:
+        final_result["forecast_days"] = rule_result["forecast_days"]
 
-    return merged_result
+    # Use query_type from rule only if LLM stayed current_weather
+    if (
+        final_result.get("query_type") == "current_weather"
+        and rule_result.get("query_type") != "current_weather"
+    ):
+        final_result["query_type"] = rule_result["query_type"]
 
+    # Final cleanup
+    final_result["city"] = clean_weather_location_text(final_result.get("city", ""))
+
+    if not final_result.get("city"):
+        final_result["city"] = ""
+
+    logger.info(f"Final parsed weather query: {final_result}")
+
+    return final_result
 
 # ==================================================
 # Geocoding API
@@ -1222,7 +1294,7 @@ def weather_help(query: str) -> str:
 
     parsed_query = parse_weather_query(query)
 
-    location = parsed_query.get("location", "")
+    location = parsed_query.get("city", "")
     query_type = parsed_query.get("query_type", "current_weather")
     forecast_days = safe_int(parsed_query.get("forecast_days", 1), default_value=1)
     response_format = parsed_query.get("response_format", "text")
