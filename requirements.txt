@@ -1,0 +1,7 @@
+streamlit
+openai
+python-dotenv
+requests
+pandas
+langgraph
+streamlit-js-eval
