@@ -2,6 +2,14 @@
 
 Young60 is an AI-powered assistant for senior citizens.
 
+## Live Demo
+
+[Open Young60 App](https://young60-ai-assistant.streamlit.app/)
+
+## GitHub Repository
+
+[View Source Code](https://github.com/sachitr/young60-ai-assistant)
+
 It helps with:
 
 - Weather queries
