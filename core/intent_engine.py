@@ -162,6 +162,31 @@ def detect_intent_by_rules(query: str) -> str:
         return "weather"
 
     # --------------------------------------------------
+    # General / digital help detection
+    # --------------------------------------------------
+
+    general_help_words = [
+        "whatsapp",
+        "video call",
+        "phone",
+        "mobile",
+        "app",
+        "email",
+        "upi",
+        "how to",
+        "kaise",
+        "explain",
+        "steps",
+        "message",
+        "sms",
+    ]
+
+    if any(word in q for word in general_help_words):
+        print("[INTENT_ENGINE] Strong general/digital help intent detected", flush=True)
+        return "general"
+
+
+    # --------------------------------------------------
     # Metro detection
     # --------------------------------------------------
 
